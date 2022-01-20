@@ -1,0 +1,57 @@
+*Pick And Place List
+*Company=
+*Author=
+*eMail=
+*
+*Project=CyGate4-Keypad
+*Date=10:47:22
+*CreatedBy=Fritzing 0.9.3b.04.19.5c895d327c44a3114e5fcc9d8260daf0cbb52806
+*
+*
+*Coordinates in mm, always center of component
+*Origin 0/0=Lower left corner of PCB
+*Rotation in degree (0-360, math. pos.)
+*
+*No;Value;Package;X;Y;Rotation;Side;Name
+1;;;48.4836;-3.40694;0;Bottom;TXT15
+2;;THT;71.2756;-47.3643;90;Bottom;J4
+3;;;38.3376;-3.11494;0;Bottom;TXT12
+4;;;45.8464;-42.3403;-90;Bottom;TXT21
+5;;;43.4559;-44.2406;-90;Bottom;TXT22
+6;;;5.23555;-49.9043;0;Bottom;Hole3
+7;;;66.6757;-12.0698;-90;Bottom;TXT23
+8;;;71.3477;-42.0483;0;Bottom;TXT19
+9;;;73.781;-41.951;0;Bottom;TXT18
+10;;;68.7188;-34.0679;0;Bottom;TXT17
+11;;THT;71.2756;-32.1243;90;Bottom;J5
+12;;;85.0096;-26.3551;-90;Bottom;TXT16
+13;;;73.8643;-49.543;0;Bottom;TXT18
+14;;;46.1336;-51.295;0;Bottom;TXT14
+15;;THT;68.6926;-6.21634;90;Bottom;J6
+16;;;63.3844;-12.0696;-90;Bottom;TXT23
+17;;;35.7332;-29.5843;-90;Bottom;Arduino Micro Rev3
+18;;;70.3742;-12.9456;-90;Bottom;TXT21
+19;;THT;71.2756;-39.7443;90;Bottom;J3
+20;;THT;45.8756;-47.3643;90;Bottom;J1
+21;;;68.845;-1.7036;0;Bottom;TXT24
+22;;;68.7197;-41.951;0;Bottom;TXT17
+23;;;40.9295;-43.3137;-90;Bottom;TXT20
+24;;;5.05987;-27.298;-90;Bottom;TXT26
+25;;;71.3468;-34.2625;0;Bottom;TXT19
+26;;;68.735;-49.5658;0;Bottom;TXT17
+27;;;71.3683;-49.7377;0;Bottom;TXT19
+28;4.7k;THT;33.1756;-11.8043;90;Bottom;R2
+29;;;7.3067;-26.5761;-90;Bottom;TXT27
+30;;;73.7801;-34.0679;0;Bottom;TXT18
+31;;;5.23555;-4.18434;0;Bottom;Hole4
+32;;;2.37071;-27.351;-90;Bottom;TXT25
+33;4.7k;THT;30.6356;-11.8043;90;Bottom;R1
+34;0.1mF;100 mil [THT, multilayer];26.8256;-42.2843;0;Bottom;C1
+35;;;73.7811;-12.1669;-90;Bottom;TXT20
+36;;;48.4946;-42.389;-90;Bottom;TXT21
+37;;;71.3943;-28.69;0;Bottom;TXT13
+38;;;83.9756;-49.9043;0;Bottom;Hole1
+39;;THT;47.1456;-6.72434;90;Bottom;J2
+40;;;83.9756;-4.18434;0;Bottom;Hole2
+41;;;51.1024;-43.3137;-90;Bottom;TXT20
+42;;;20.217;-11.6795;0;Bottom;IMG2
