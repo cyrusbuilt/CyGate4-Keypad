@@ -1,15 +1,21 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "Buzzer.h"
 #include "CrystalFontz632.h"
 #include "ButtonpadDriver.h"
 #include "KeypadProtocol.h"
+#include "LED.h"
 
 #define FIRMWARE_VERSION "1.0"
 
+// Pin definitions
 #define PIN_DISPLAY_TX 13
 #define PIN_ADDRESS_A0 A0
 #define PIN_ADDRESS_A1 A1
 #define PIN_ADDRESS_A2 A2
+#define PIN_PWR_LED 6
+#define PIN_ACT_LED 7
+#define PIN_PIEZO 5
 
 #define DEBUG_BAUD_RATE 9600
 #define ADDRESS_BASE 0x10
@@ -23,7 +29,8 @@ enum class Screen : uint8_t
 	ARMING = 2,
 	ARMED = 3,
 	UNLOCK = 4,
-	DISARMING = 5
+	DISARMING = 5,
+	INVALID_CODE = 6
 };
 
 enum class ArmState : uint8_t {
@@ -32,6 +39,9 @@ enum class ArmState : uint8_t {
 };
 
 CrystalFontz632 display(PIN_DISPLAY_TX);
+LED pwrLED(PIN_PWR_LED, NULL);
+LED actLED(PIN_ACT_LED, NULL);
+Buzzer buzzer(PIN_PIEZO, NULL, NULL);
 String armCode;
 String unlockCode;
 KeypadData data;
@@ -51,22 +61,21 @@ void clearKeypadData() {
 	data.command = 0;
 	data.size = 0;
 	for (uint8_t i = 0; i < KEYPAD_DATA_BUFFER_SIZE; i++) {
-		data.data[i] = 0;
+		data.data[i] = 0x00;
 	}
 }
 
 void sendKeyCode() {
-	uint8_t *buffer;
+	uint8_t buffer[3 + data.size];
 	buffer[0] = KEYPAD_GET_CMD_DATA;
 	buffer[1] = data.command;
 	buffer[2] = data.size;
-	for (size_t i = 0; i < data.size; i++) {
+	for (uint8_t i = 0; i < data.size; i++) {
 		buffer[i + 3] = data.data[i];
 	}
 
 	Wire.write(buffer, data.size + 3);
 	clearKeypadData();
-	delete[] buffer;
 }
 
 void commBusReceiveHandler(int byteCount) {
@@ -94,10 +103,15 @@ void commBusRequestHandler() {
 	case KEYPAD_GET_CMD_DATA:
 		sendKeyCode();
 		break;
+	case KEYPAD_BAD_CODE:
+		// TODO Set bad code and go to invalid code screen?
+		// TODO probably also flash LED and beep?
+		break;
 	default:
 		break;
 	}
 
+	command = 0xFF;
 	processCommand = false;
 }
 
@@ -142,6 +156,14 @@ void unlockScreen() {
 }
 
 void armedScreen() {
+	data.command = (uint8_t)KeypadCommands::ARM_AWAY;
+	const char* charBuf = armCode.c_str();
+	for (uint8_t i = 0; i < KEYPAD_DATA_BUFFER_SIZE; i++) {
+		data.data[i] = (byte)charBuf[i];
+	}
+
+	Serial.print(F("INFO: Arm code: "));
+	Serial.println(armCode);
 	Serial.println(F("WARN: *** ARMED ***"));
 	display.clearDisplay();
 	display.hideCursor();
@@ -151,6 +173,7 @@ void armedScreen() {
 	display.print(count);
 	currentScreen = Screen::ARMED;
 	count = ARMING_COUNT_DOWN_START;
+	delete[] charBuf;
 }
 
 void disarmingScreen() {
@@ -163,15 +186,34 @@ void disarmingScreen() {
 }
 
 bool isArmCodeValid() {
-	// TODO Send the arm code to host via I2C for validation
-	return true;
+	if (armCode.length() == 4) {
+		// TODO Send the arm code to host via I2C for validation
+		return true;
+	}
+	return false;
+}
+
+bool isUnlockCodeValid() {
+	if (unlockCode.length() == 4) {
+		// TODO Send the arm code to host via I2C for validation
+		return true;
+	}
+	return false;
 }
 
 void maskAccessCode(char key) {
 	if (key != 'A' && key != 'B' && key != 'C' && key != 'D') {
-		armCode += key;
 		display.print(F("*"));
 	}
+}
+
+void invalidCodeScreen() {
+	Serial.println(F("WARN: Invalid access code."));
+	display.clearDisplay();
+	display.hideCursor();
+	display.print(F("INVALID CODE"));
+	currentScreen = Screen::INVALID_CODE;
+	delay(3000);
 }
 
 void keypadHandler(KeypadEvent *event) {
@@ -206,17 +248,22 @@ void keypadHandler(KeypadEvent *event) {
 					homeScreen();
 					break;
 				case '#':
-					if (armCode.length() == 4) {
-						if (isArmCodeValid()) {
-							armedScreen();
-						}
-						else {
-
-						}
+					Serial.print(F("DEBUG: Arm code = '"));
+					Serial.print(armCode);
+					Serial.println(F("'"));
+					if (isArmCodeValid()) {
+						armedScreen();
+					}
+					else {
+						invalidCodeScreen();
+						armingScreen();
 					}
 					break;
 				default:
-					maskAccessCode(event->key);
+					if (armCode.length() < 8) {
+						maskAccessCode(event->key);
+						armCode += event->key;
+					}
 					break;
 			}
 			break;
@@ -226,10 +273,19 @@ void keypadHandler(KeypadEvent *event) {
 					homeScreen();
 					break;
 				case '#':
-
+					if (isUnlockCodeValid()) {
+						// TODO briefly indicate unlocked?
+					}
+					else {
+						invalidCodeScreen();
+						unlockScreen();
+					}
 					break;
 				default:
-					maskAccessCode(event->key);
+					if (unlockCode.length() < 5) {
+						maskAccessCode(event->key);
+						unlockCode += event->key;
+					}
 					break;
 			}
 		case Screen::ARMED:
@@ -270,6 +326,19 @@ void initSerial() {
 	Serial.println(F(" booting..."));
 }
 
+void initOutputs() {
+	Serial.print(F("INIT: Initializing outputs... "));
+	pwrLED.init();
+	pwrLED.on();
+
+	actLED.init();
+	actLED.on();
+
+	buzzer.init();
+	buzzer.off();
+	Serial.println(F("DONE"));
+}
+
 void initDisplay() {
 	Serial.print(F("INIT: Initializing LCD display... "));
 	display.begin(DT_SIXTEENBYTWO, DisplayBaudRate::BAUD_9600);
@@ -279,7 +348,7 @@ void initDisplay() {
 	display.hideCursor();
 	display.print(F("CG4-Keypad v"));
 	display.print(FIRMWARE_VERSION);
-	display.crlf();
+	display.carriageReturn();
 	display.print(F("booting..."));
 	Serial.println(F("DONE"));
 	delay(500);
@@ -319,11 +388,13 @@ void initCommBus() {
 
 void setup() {
 	initSerial();
+	initOutputs();
 	initDisplay();
 	initKeypad();
 	initCommBus();
 	homeScreen();
 	Serial.println(F("INIT: Boot sequence complete"));
+	actLED.off();
 }
 
 void loop() {

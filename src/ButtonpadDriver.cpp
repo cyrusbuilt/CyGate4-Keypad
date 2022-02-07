@@ -33,10 +33,13 @@ void ButtonpadDriverClass::loop() {
 		this->_sender->state = (ButtonpadButtonState)e.bit.EVENT;
 		if (this->onStateChange != NULL) {
 			this->onStateChange(this->_sender);
+			delay(50);
 		}
 	}
+}
 
-	delay(5);  // TODO we can probably do without this
+void ButtonpadDriverClass::clear() {
+	this->_keypad->clear();
 }
 
 ButtonpadDriverClass ButtonpadDriver;

@@ -22,6 +22,7 @@ public:
 	ButtonpadDriverClass();
 	void begin(void (*eventHandler)(KeypadEvent *sender));
 	void loop();
+	void clear();
 
 private:
 	Adafruit_Keypad *_keypad;
