@@ -85,6 +85,20 @@ void sendKeyCode() {
 	clearKeypadData();
 }
 
+void sendInitAck() {
+	byte buffer[1];
+	buffer[0] = KEYPAD_INIT;
+	Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
+	delete[] buffer;
+}
+
+void sendDetectAck() {
+	byte buffer[1];
+	buffer[0] = KEYPAD_DETECT_ACK;
+	Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
+	delete[] buffer;
+}
+
 // void commBusReceiveHandler(int byteCount) {
 // 	// NOTE: We *should* only be recieving single-byte commands.
 // 	command = Wire.read();
@@ -103,17 +117,11 @@ void handleCommand(byte command) {
 		// For now, just ACK the init request, but we should probably return some
 		// type of status code.
 		//Wire.write(KEYPAD_INIT);
-		byte buffer[1];
-		buffer[0] = KEYPAD_INIT;
-		Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
-		delete[] buffer;
+		sendInitAck();
 		break;
 	case KEYPAD_DETECT:
 		//Wire.write(KEYPAD_DETECT_ACK);
-		byte buffer[1];
-		buffer[0] = KEYPAD_DETECT_ACK;
-		Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
-		delete[] buffer;
+		sendDetectAck();
 		break;
 	case KEYPAD_GET_CMD_DATA:
 		sendKeyCode();
@@ -349,8 +357,8 @@ int getBusAddress() {
 
 void onReceiveHandler(ModbusPacket* packet) {
 	if (packet->payloadSize == 1) {
-		// We should only be receiving single-byte commands
-		// TODO pass command to handler
+		// We should only be receiving single-byte commands.
+		handleCommand(packet->payload[0]);
 	}
 }
 
