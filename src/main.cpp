@@ -1,10 +1,11 @@
 #include <Arduino.h>
-#include <Wire.h>
+//#include <Wire.h>
 #include "Buzzer.h"
 #include "CrystalFontz632.h"
 #include "ButtonpadDriver.h"
 #include "KeypadProtocol.h"
 #include "LED.h"
+#include "Modbus.h"
 
 #define FIRMWARE_VERSION "1.0"
 
@@ -16,9 +17,12 @@
 #define PIN_PWR_LED 6
 #define PIN_ACT_LED 7
 #define PIN_PIEZO 5
+#define PIN_MODBUS_ENABLE 2
 
 #define DEBUG_BAUD_RATE 9600
+#define MODBUS_BAUD_RATE 115200
 #define ADDRESS_BASE 0x10
+#define MODBUS_HOST_ADDR 0
 
 #define ARMING_COUNT_DOWN_START 30
 
@@ -48,8 +52,8 @@ KeypadData data;
 uint8_t count = ARMING_COUNT_DOWN_START;
 ArmState armState = ArmState::DISARMED;
 unsigned long previousMillis = 0;
-volatile byte command = 0xFF;
-volatile bool processCommand = false;
+//volatile byte command = 0xFF;
+//volatile bool processCommand = false;
 volatile Screen currentScreen = Screen::HOME;
 const short addrPins[3] = {
 	PIN_ADDRESS_A0,
@@ -66,7 +70,8 @@ void clearKeypadData() {
 }
 
 void sendKeyCode() {
-	uint8_t buffer[3 + data.size];
+	const uint8_t packetSize = 3 + data.size;
+	byte buffer[packetSize];
 	buffer[0] = KEYPAD_GET_CMD_DATA;
 	buffer[1] = data.command;
 	buffer[2] = data.size;
@@ -74,31 +79,41 @@ void sendKeyCode() {
 		buffer[i + 3] = data.data[i];
 	}
 
-	Wire.write(buffer, data.size + 3);
+	//Wire.write(buffer, packetSize);
+	Modbus.write(MODBUS_HOST_ADDR, buffer, packetSize);
+	delete[] buffer;
 	clearKeypadData();
 }
 
-void commBusReceiveHandler(int byteCount) {
-	// NOTE: We *should* only be recieving single-byte commands.
-	command = Wire.read();
-	processCommand = true;
-}
+// void commBusReceiveHandler(int byteCount) {
+// 	// NOTE: We *should* only be recieving single-byte commands.
+// 	command = Wire.read();
+// 	processCommand = true;
+// }
 
-void commBusRequestHandler() {
-	if (!processCommand) {
-		return;
-	}
+//void commBusRequestHandler() {
+void handleCommand(byte command) {
+	// if (!processCommand) {
+	// 	return;
+	// }
 
-	switch (command)
-	{
+	switch (command) {
 	case KEYPAD_INIT:
 		// TODO: What init/re-init actions should we take here?
 		// For now, just ACK the init request, but we should probably return some
 		// type of status code.
-		Wire.write(KEYPAD_INIT);
+		//Wire.write(KEYPAD_INIT);
+		byte buffer[1];
+		buffer[0] = KEYPAD_INIT;
+		Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
+		delete[] buffer;
 		break;
 	case KEYPAD_DETECT:
-		Wire.write(KEYPAD_DETECT_ACK);
+		//Wire.write(KEYPAD_DETECT_ACK);
+		byte buffer[1];
+		buffer[0] = KEYPAD_DETECT_ACK;
+		Modbus.write(MODBUS_HOST_ADDR, buffer, 1);
+		delete[] buffer;
 		break;
 	case KEYPAD_GET_CMD_DATA:
 		sendKeyCode();
@@ -111,8 +126,9 @@ void commBusRequestHandler() {
 		break;
 	}
 
-	command = 0xFF;
-	processCommand = false;
+	
+	// command = 0xFF;
+	// processCommand = false;
 }
 
 void homeScreen() {
@@ -315,6 +331,29 @@ void keypadHandler(KeypadEvent *event) {
 	}
 }
 
+int getBusAddress() {
+	byte addressOffset = 0;
+	for (uint8_t i = 0; i < 3; i++) {
+		pinMode(addrPins[i], INPUT_PULLUP);
+		delay(1);
+
+		addressOffset <<= 1;
+		if (digitalRead(addrPins[i]) == HIGH) {
+			addressOffset |= 0x01;
+		}
+	}
+
+	int busAddress = ADDRESS_BASE + addressOffset;
+	return busAddress;
+}
+
+void onReceiveHandler(ModbusPacket* packet) {
+	if (packet->payloadSize == 1) {
+		// We should only be receiving single-byte commands
+		// TODO pass command to handler
+	}
+}
+
 void initSerial() {
 	Serial.begin(DEBUG_BAUD_RATE);
 	while (!Serial) {
@@ -362,28 +401,39 @@ void initKeypad() {
 	Serial.println(F("DONE"));
 }
 
-void initCommBus() {
-	Serial.print(F("INIT: Initializing I2C comm bus... "));
+// void initCommBus() {
+// 	Serial.print(F("INIT: Initializing I2C comm bus... "));
 
-	byte addressOffset = 0;
-	for (uint8_t i = 0; i < 3; i++) {
-		pinMode(addrPins[i], INPUT_PULLUP);
-		delay(1);
+// 	byte addressOffset = 0;
+// 	for (uint8_t i = 0; i < 3; i++) {
+// 		pinMode(addrPins[i], INPUT_PULLUP);
+// 		delay(1);
 
-		addressOffset <<= 1;
-		if (digitalRead(addrPins[i]) == HIGH) {
-			addressOffset |= 0x01;
-		}
-	}
+// 		addressOffset <<= 1;
+// 		if (digitalRead(addrPins[i]) == HIGH) {
+// 			addressOffset |= 0x01;
+// 		}
+// 	}
 
-	int busAddress = ADDRESS_BASE + addressOffset;
-	Wire.begin(busAddress);
-	Wire.onReceive(commBusReceiveHandler);
-	Wire.onRequest(commBusRequestHandler);
+// 	int busAddress = ADDRESS_BASE + addressOffset;
+// 	Wire.begin(busAddress);
+// 	Wire.onReceive(commBusReceiveHandler);
+// 	Wire.onRequest(commBusRequestHandler);
 	
+// 	Serial.println(F("DONE"));
+// 	Serial.print(F("INIT: I2C bus address: "));
+// 	Serial.println(busAddress, HEX);
+// }
+
+void initModbus() {
+	const int address = getBusAddress();
+	Serial.print(F("INIT: Initializing modbus on address: 0x"));
+	Serial.print(address, HEX);
+	Serial.print(F(" ..."));
+	Serial1.begin(MODBUS_BAUD_RATE);
+	Modbus.begin(&Serial1, address, PIN_MODBUS_ENABLE);
+	Modbus.setOnRecieve(onReceiveHandler);
 	Serial.println(F("DONE"));
-	Serial.print(F("INIT: I2C bus address: "));
-	Serial.println(busAddress, HEX);
 }
 
 void setup() {
@@ -391,7 +441,8 @@ void setup() {
 	initOutputs();
 	initDisplay();
 	initKeypad();
-	initCommBus();
+	//initCommBus();
+	initModbus();
 	homeScreen();
 	Serial.println(F("INIT: Boot sequence complete"));
 	actLED.off();
